@@ -4,32 +4,54 @@ Approve or deny Claude Code's tool calls from your phone via Telegram.
 
 When Claude Code wants to run a command, edit a file, or use any tool, cctg sends a permission request to your Telegram bot. You tap **Allow** or **Deny** — and Claude proceeds (or doesn't).
 
-```
-Claude Code                          You (phone)
-    │                                    │
-    ├─ wants to run `git push` ──┐       │
-    │                            ▼       │
-    │                       cctg hook    │
-    │                            │       │
-    │                            ├──▶ 💻 *Bash*                │
-    │                            │    ────────────────────     │
-    │                            │    git push origin main     │
-    │                            │    [✅ Allow] [❌ Deny]      │
-    │                            │                             │
-    │                            ◀── you tap Allow ────────────┤
-    │                            │                             │
-    ◀── tool proceeds ──────────┘                             │
+```mermaid
+sequenceDiagram
+    participant C as Claude Code
+    participant H as cctg hook
+    participant T as Telegram
+    participant U as You (phone)
+
+    C->>H: Tool call (e.g. git push)
+    H->>H: Active? Allowed in settings?
+
+    alt Already permitted
+        H-->>C: Pass through
+    else Needs approval
+        H->>T: Send message with buttons
+        T->>U: 💻 Bash: git push<br/>[✅ Allow] [❌ Deny]
+        U->>T: Tap Allow
+        T->>H: Callback: allow
+        H->>T: Update message: ✅ Allowed
+        H-->>C: allow
+    end
 ```
 
 ## How it works
 
-cctg is a single Node.js script registered as a Claude Code [PreToolUse hook](https://docs.claude.com/en/docs/claude-code/hooks). Each time Claude wants to use a tool:
+cctg is a [PreToolUse hook](https://docs.claude.com/en/docs/claude-code/hooks) for Claude Code. Each time Claude wants to use a tool:
 
-1. The hook checks if cctg is **active** (`cctg on` / `cctg off` toggle)
-2. If the tool is already allowed in `~/.claude/settings.json`, it passes through silently
-3. Otherwise, sends a Telegram message with **Allow** / **Deny** buttons
-4. Long-polls Telegram for your response
-5. Returns the decision to Claude Code
+```mermaid
+flowchart TD
+    A[Tool call] --> B{cctg active?}
+    B -- No --> C[Pass through<br/>Normal CLI prompts]
+    B -- Yes --> D{In settings.json<br/>allow list?}
+    D -- Yes --> C
+    D -- No --> E{In cctg<br/>autoApprove?}
+    E -- Yes --> F[Allow silently]
+    E -- No --> G{In cctg<br/>autoDeny?}
+    G -- Yes --> H[Deny silently]
+    G -- No --> I[Send to Telegram]
+    I --> J{User taps}
+    J -- Allow --> K[Allow + update msg]
+    J -- Deny --> L[Deny + update msg]
+    J -- Timeout --> L
+
+    style C fill:#2d4a2d
+    style F fill:#2d4a2d
+    style K fill:#2d4a2d
+    style H fill:#4a2d2d
+    style L fill:#4a2d2d
+```
 
 No daemon. No background process. No external dependencies beyond Node.js.
 
