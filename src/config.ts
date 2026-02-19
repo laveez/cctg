@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -11,6 +11,11 @@ export interface CctgConfig {
 }
 
 export const CONFIG_PATH = join(homedir(), ".cctg.json");
+export const ACTIVE_PATH = join(homedir(), ".cctg-active");
+
+export function isActive(): boolean {
+  return existsSync(ACTIVE_PATH);
+}
 
 export function loadConfig(): CctgConfig {
   let raw: string;

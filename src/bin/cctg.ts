@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
 import { createInterface } from "node:readline/promises";
-import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { CONFIG_PATH } from "../config.js";
+import { CONFIG_PATH, ACTIVE_PATH } from "../config.js";
 
 const SETTINGS_PATH = join(homedir(), ".claude", "settings.json");
 
@@ -82,16 +82,48 @@ async function init() {
   );
 }
 
+function on() {
+  writeFileSync(ACTIVE_PATH, String(Date.now()));
+  console.log("\u2705 cctg enabled — tool calls will be sent to Telegram");
+}
+
+function off() {
+  try {
+    unlinkSync(ACTIVE_PATH);
+  } catch {
+    // Already off
+  }
+  console.log("\u274c cctg disabled — tool calls use normal CLI prompts");
+}
+
+function status() {
+  const active = existsSync(ACTIVE_PATH);
+  console.log(`cctg is ${active ? "ON (Telegram approval)" : "OFF (CLI prompts)"}`);
+}
+
 const command = process.argv[2];
 
-if (command === "init") {
-  init().catch((err) => {
-    console.error(`Error: ${err.message}`);
-    process.exit(1);
-  });
-} else {
-  console.log("Usage: cctg init");
-  console.log(
-    "  init  \u2014 Set up Telegram bot and register Claude Code hook"
-  );
+switch (command) {
+  case "init":
+    init().catch((err) => {
+      console.error(`Error: ${err.message}`);
+      process.exit(1);
+    });
+    break;
+  case "on":
+    on();
+    break;
+  case "off":
+    off();
+    break;
+  case "status":
+    status();
+    break;
+  default:
+    console.log("Usage: cctg <command>\n");
+    console.log("Commands:");
+    console.log("  init    \u2014 Set up Telegram bot and register Claude Code hook");
+    console.log("  on      \u2014 Enable Telegram approval (going AFK)");
+    console.log("  off     \u2014 Disable Telegram approval (back at keyboard)");
+    console.log("  status  \u2014 Show current mode");
 }

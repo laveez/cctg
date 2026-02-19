@@ -1,4 +1,7 @@
 import https from "node:https";
+import { readFileSync, writeFileSync } from "node:fs";
+
+const OFFSET_PATH = "/tmp/cctg-offset";
 
 interface TelegramResponse<T> {
   ok: boolean;
@@ -84,6 +87,45 @@ export async function sendPermissionRequest(
   return res.result.message_id;
 }
 
+function loadOffset(): number {
+  try {
+    return parseInt(readFileSync(OFFSET_PATH, "utf-8").trim(), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveOffset(offset: number): void {
+  try {
+    writeFileSync(OFFSET_PATH, String(offset));
+  } catch {
+    // Non-critical — worst case we reprocess stale updates (requestId guards correctness)
+  }
+}
+
+export async function flushStaleUpdates(
+  botToken: string
+): Promise<number> {
+  let offset = loadOffset();
+  if (offset === 0) return offset;
+
+  // One non-blocking call to advance past any stale callbacks
+  const res = await telegramApi<Update[]>(botToken, "getUpdates", {
+    offset,
+    timeout: 0,
+    allowed_updates: ["callback_query"],
+  });
+
+  if (res.ok && res.result.length > 0) {
+    for (const update of res.result) {
+      offset = Math.max(offset, update.update_id + 1);
+    }
+    saveOffset(offset);
+  }
+
+  return offset;
+}
+
 export async function pollForDecision(
   botToken: string,
   chatId: string,
@@ -91,7 +133,7 @@ export async function pollForDecision(
   timeoutSeconds: number
 ): Promise<"allow" | "deny"> {
   const deadline = Date.now() + timeoutSeconds * 1000;
-  let offset = 0;
+  let offset = loadOffset();
 
   while (Date.now() < deadline) {
     const pollTimeout = Math.min(
@@ -112,6 +154,8 @@ export async function pollForDecision(
 
     for (const update of res.result) {
       offset = update.update_id + 1;
+      saveOffset(offset);
+
       const cb = update.callback_query;
       if (!cb?.data) continue;
 

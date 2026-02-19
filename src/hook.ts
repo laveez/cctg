@@ -1,11 +1,15 @@
-import { loadConfig } from "./config.js";
+import { loadConfig, isActive } from "./config.js";
 import {
   sendPermissionRequest,
   pollForDecision,
   editMessage,
+  flushStaleUpdates,
 } from "./telegram.js";
 import { formatToolCall, parseHookStdin } from "./format.js";
+import { isToolAllowed } from "./permissions.js";
 import { randomBytes } from "node:crypto";
+
+const PASS_THROUGH = JSON.stringify({});
 
 async function main() {
   // Read hook payload from stdin
@@ -15,9 +19,22 @@ async function main() {
   }
 
   const payload = parseHookStdin(input);
+
+  // 1. Toggle check — if cctg is off, pass through (normal CLI prompts)
+  if (!isActive()) {
+    process.stdout.write(PASS_THROUGH);
+    return;
+  }
+
+  // 2. Permission check — if tool is already allowed in settings.json, pass through
+  if (isToolAllowed(payload.tool_name, payload.tool_input)) {
+    process.stdout.write(PASS_THROUGH);
+    return;
+  }
+
   const config = loadConfig();
 
-  // Check auto-approve list
+  // 3. Check auto-approve list (cctg config)
   if (config.autoApprove.includes(payload.tool_name)) {
     process.stdout.write(
       JSON.stringify({
@@ -30,7 +47,7 @@ async function main() {
     return;
   }
 
-  // Check auto-deny list
+  // 4. Check auto-deny list (cctg config)
   if (config.autoDeny.includes(payload.tool_name)) {
     process.stdout.write(
       JSON.stringify({
@@ -43,6 +60,9 @@ async function main() {
     );
     return;
   }
+
+  // 5. Flush stale updates before sending new request
+  await flushStaleUpdates(config.botToken);
 
   // Generate unique request ID
   const requestId = randomBytes(8).toString("hex");
