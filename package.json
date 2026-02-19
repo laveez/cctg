@@ -1,0 +1,21 @@
+{
+  "name": "cctg",
+  "version": "0.1.0",
+  "description": "Claude Code Telegram Gate — approve tool calls from your phone",
+  "type": "module",
+  "main": "dist/hook.js",
+  "bin": {
+    "cctg": "dist/bin/cctg.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "files": ["dist"],
+  "keywords": ["claude", "claude-code", "telegram", "hooks", "permissions"],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  }
+}
