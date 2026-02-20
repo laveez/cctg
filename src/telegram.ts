@@ -138,13 +138,11 @@ export async function flushStaleUpdates(
   botToken: string
 ): Promise<number> {
   let offset = loadOffset();
-  if (offset === 0) return offset;
 
-  // One non-blocking call to advance past any stale callbacks
+  // Flush ALL stale updates (callbacks, messages, etc.) — not just callback_query
   const res = await telegramApi<Update[]>(botToken, "getUpdates", {
     offset,
     timeout: 0,
-    allowed_updates: ["callback_query"],
   });
 
   if (res.ok && res.result.length > 0) {
@@ -219,7 +217,8 @@ export async function pollForTextMessage(
   botToken: string,
   chatId: string,
   timeoutSeconds: number,
-  checkAbort?: () => boolean
+  checkAbort?: () => boolean,
+  afterTimestamp?: number
 ): Promise<TextPollResult> {
   const deadline = Date.now() + timeoutSeconds * 1000;
   let offset = loadOffset();
@@ -250,6 +249,9 @@ export async function pollForTextMessage(
       const msg = update.message;
       if (!msg?.text) continue;
       if (String(msg.chat.id) !== chatId) continue;
+
+      // Skip messages sent before this hook invocation (defense in depth)
+      if (afterTimestamp && msg.date < afterTimestamp) continue;
 
       if (msg.text.trim() === "/done") {
         return { type: "done" };

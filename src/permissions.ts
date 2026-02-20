@@ -33,6 +33,81 @@ function globMatch(pattern: string, value: string): boolean {
   return new RegExp(`^${escaped}$`).test(value);
 }
 
+function splitChainedCommands(command: string): string[] {
+  const segments: string[] = [];
+  let current = "";
+  let depth = 0; // subshell depth
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i];
+
+    // Quote tracking
+    if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+      current += ch;
+      continue;
+    }
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      current += ch;
+      continue;
+    }
+
+    // Skip everything inside quotes
+    if (inSingle || inDouble) {
+      current += ch;
+      continue;
+    }
+
+    // Subshell depth tracking
+    if (ch === "(") {
+      depth++;
+      current += ch;
+      continue;
+    }
+    if (ch === ")" && depth > 0) {
+      depth--;
+      current += ch;
+      continue;
+    }
+
+    // Only split at top level (outside subshells)
+    if (depth > 0) {
+      current += ch;
+      continue;
+    }
+
+    // Check for two-char operators: && ||
+    if (i + 1 < command.length) {
+      const two = ch + command[i + 1];
+      if (two === "&&" || two === "||") {
+        const trimmed = current.trim();
+        if (trimmed) segments.push(trimmed);
+        current = "";
+        i++; // skip second char
+        continue;
+      }
+    }
+
+    // Single-char operators: ; |
+    if (ch === ";" || ch === "|") {
+      const trimmed = current.trim();
+      if (trimmed) segments.push(trimmed);
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed) segments.push(trimmed);
+
+  return segments;
+}
+
 function matchBashRule(ruleArg: string, command: string): boolean {
   // Rule format: "prefix:*" — command must start with prefix
   if (ruleArg.endsWith(":*")) {
@@ -85,12 +160,10 @@ export function isToolAllowed(
     const [, ruleTool, ruleArg] = parenMatch;
     if (ruleTool !== toolName) continue;
 
+    // Bash rules are handled separately below (need all segments to match)
+    if (toolName === "Bash") continue;
+
     switch (toolName) {
-      case "Bash": {
-        const command = toolInput.command ?? "";
-        if (matchBashRule(ruleArg, command)) return true;
-        break;
-      }
       case "Read":
       case "Write":
       case "Edit": {
@@ -113,6 +186,24 @@ export function isToolAllowed(
         // Unrecognized rule format for this tool — skip (fail-safe)
         break;
     }
+  }
+
+  // Bash: collect all Bash(...) rules, split command into segments, check all match
+  if (toolName === "Bash") {
+    const bashRuleArgs: string[] = [];
+    for (const rule of rules) {
+      const m = rule.match(/^Bash\((.+)\)$/);
+      if (m) bashRuleArgs.push(m[1]);
+    }
+    if (bashRuleArgs.length === 0) return false;
+
+    const command = toolInput.command ?? "";
+    const segments = splitChainedCommands(command);
+    if (segments.length === 0) return false;
+
+    return segments.every((seg) =>
+      bashRuleArgs.some((ruleArg) => matchBashRule(ruleArg, seg))
+    );
   }
 
   return false;

@@ -123,22 +123,45 @@ export function formatQuestion(questions: Question[]): string {
 }
 
 export function extractLastAssistantMessage(transcriptPath: string): string {
-  const content = readFileSync(transcriptPath, "utf-8");
-  const lines = content.trim().split("\n");
+  try {
+    const content = readFileSync(transcriptPath, "utf-8");
+    const lines = content.trim().split("\n");
 
-  for (let i = lines.length - 1; i >= 0; i--) {
-    try {
-      const entry = JSON.parse(lines[i]);
-      if (entry.type === "assistant" && entry.message?.content) {
-        const textBlocks = entry.message.content
+    const blocks: string[] = [];
+    const MAX_BLOCKS = 3;
+
+    for (let i = lines.length - 1; i >= 0 && blocks.length < MAX_BLOCKS; i--) {
+      try {
+        const entry = JSON.parse(lines[i]);
+
+        // Support both transcript formats: entry.type and entry.role
+        const isAssistant =
+          entry.type === "assistant" || entry.role === "assistant";
+        if (!isAssistant) continue;
+
+        // Support both content locations: entry.message.content and entry.content
+        const contentArray = entry.message?.content ?? entry.content;
+        if (!Array.isArray(contentArray)) continue;
+
+        const textBlocks = contentArray
           .filter((b: { type: string }) => b.type === "text")
-          .map((b: { text: string }) => b.text);
-        if (textBlocks.length > 0) return textBlocks.join("\n");
-      }
-    } catch {
-      continue;
-    }
-  }
+          .map((b: { text: string }) => b.text)
+          .filter(Boolean);
 
-  return "(no message)";
+        if (textBlocks.length > 0) {
+          blocks.push(textBlocks.join("\n"));
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (blocks.length === 0) return "(no message)";
+
+    // Reverse so oldest is first, join with separator
+    const combined = blocks.reverse().join("\n\n---\n\n");
+    return combined.length > 2000 ? combined.slice(0, 1997) + "..." : combined;
+  } catch {
+    return "(no message)";
+  }
 }

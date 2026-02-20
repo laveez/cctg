@@ -44,6 +44,9 @@ async function main() {
   // Flush stale updates
   await flushStaleUpdates(config.botToken);
 
+  // Capture timestamp before sending — only accept messages after this point
+  const hookStartTime = Math.floor(Date.now() / 1000);
+
   // Send stop notification to Telegram
   const message = formatStopMessage(lastMessage);
   const messageId = await sendMessage(
@@ -60,7 +63,8 @@ async function main() {
     config.botToken,
     config.chatId,
     config.remoteTimeoutSeconds,
-    () => readMode() !== initialMode
+    () => readMode() !== initialMode,
+    hookStartTime
   );
 
   switch (result.type) {
