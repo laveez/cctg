@@ -16,9 +16,18 @@ interface CallbackQuery {
   message?: { message_id: number; chat: { id: number } };
 }
 
+interface TelegramMessage {
+  message_id: number;
+  from?: { id: number };
+  chat: { id: number };
+  date: number;
+  text?: string;
+}
+
 interface Update {
   update_id: number;
   callback_query?: CallbackQuery;
+  message?: TelegramMessage;
 }
 
 function telegramApi<T>(
@@ -87,6 +96,28 @@ export async function sendPermissionRequest(
   return res.result.message_id;
 }
 
+export async function sendMessage(
+  botToken: string,
+  chatId: string,
+  text: string
+): Promise<number> {
+  const res = await telegramApi<{ message_id: number }>(
+    botToken,
+    "sendMessage",
+    {
+      chat_id: chatId,
+      text,
+      parse_mode: "Markdown",
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Telegram sendMessage failed: ${res.description}`);
+  }
+
+  return res.result.message_id;
+}
+
 function loadOffset(): number {
   try {
     return parseInt(readFileSync(OFFSET_PATH, "utf-8").trim(), 10) || 0;
@@ -131,7 +162,7 @@ export async function pollForDecision(
   chatId: string,
   requestId: string,
   timeoutSeconds: number
-): Promise<"allow" | "deny"> {
+): Promise<string> {
   const deadline = Date.now() + timeoutSeconds * 1000;
   let offset = loadOffset();
 
@@ -172,13 +203,97 @@ export async function pollForDecision(
         text: decision === "allow" ? "Allowed" : "Denied",
       });
 
-      if (decision === "allow" || decision === "deny") {
-        return decision;
-      }
+      return decision;
     }
   }
 
   return "deny"; // Timeout = deny (fail-closed)
+}
+
+export interface TextPollResult {
+  type: "message" | "done" | "timeout" | "abort";
+  text?: string;
+}
+
+export async function pollForTextMessage(
+  botToken: string,
+  chatId: string,
+  timeoutSeconds: number,
+  checkAbort?: () => boolean
+): Promise<TextPollResult> {
+  const deadline = Date.now() + timeoutSeconds * 1000;
+  let offset = loadOffset();
+
+  while (Date.now() < deadline) {
+    if (checkAbort?.()) return { type: "abort" };
+
+    const pollTimeout = Math.min(
+      10,
+      Math.ceil((deadline - Date.now()) / 1000)
+    );
+    if (pollTimeout <= 0) break;
+
+    const res = await telegramApi<Update[]>(botToken, "getUpdates", {
+      offset,
+      timeout: pollTimeout,
+      allowed_updates: ["message"],
+    });
+
+    if (!res.ok) {
+      throw new Error(`Telegram getUpdates failed: ${res.description}`);
+    }
+
+    for (const update of res.result) {
+      offset = update.update_id + 1;
+      saveOffset(offset);
+
+      const msg = update.message;
+      if (!msg?.text) continue;
+      if (String(msg.chat.id) !== chatId) continue;
+
+      if (msg.text.trim() === "/done") {
+        return { type: "done" };
+      }
+
+      return { type: "message", text: msg.text };
+    }
+  }
+
+  return { type: "timeout" };
+}
+
+export async function sendQuestionWithOptions(
+  botToken: string,
+  chatId: string,
+  text: string,
+  options: { label: string; callbackData: string }[],
+  requestId: string
+): Promise<number> {
+  const rows: { text: string; callback_data: string }[][] = [];
+  for (let i = 0; i < options.length; i += 2) {
+    const row = options.slice(i, i + 2).map((opt) => ({
+      text: opt.label,
+      callback_data: `${opt.callbackData}:${requestId}`,
+    }));
+    rows.push(row);
+  }
+
+  const res = await telegramApi<{ message_id: number }>(
+    botToken,
+    "sendMessage",
+    {
+      chat_id: chatId,
+      text,
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: rows },
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Telegram sendMessage failed: ${res.description}`);
+  }
+
+  return res.result.message_id;
 }
 
 export async function editMessage(
