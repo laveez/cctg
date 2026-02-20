@@ -1,11 +1,14 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+
+export type CctgMode = "on" | "tools-only" | "off";
 
 export interface CctgConfig {
   botToken: string;
   chatId: string;
   timeoutSeconds: number;
+  remoteTimeoutSeconds: number;
   autoApprove: string[];
   autoDeny: string[];
 }
@@ -13,8 +16,15 @@ export interface CctgConfig {
 export const CONFIG_PATH = join(homedir(), ".cctg.json");
 export const ACTIVE_PATH = join(homedir(), ".cctg-active");
 
-export function isActive(): boolean {
-  return existsSync(ACTIVE_PATH);
+export function getMode(): CctgMode {
+  try {
+    const content = readFileSync(ACTIVE_PATH, "utf-8").trim();
+    if (content === "on" || content === "tools-only") return content;
+    // Legacy: any other content (e.g. old timestamp) treated as "on"
+    return "on";
+  } catch {
+    return "off";
+  }
 }
 
 export function loadConfig(): CctgConfig {
@@ -39,6 +49,7 @@ export function loadConfig(): CctgConfig {
     botToken: parsed.botToken,
     chatId: String(parsed.chatId),
     timeoutSeconds: parsed.timeoutSeconds ?? 300,
+    remoteTimeoutSeconds: parsed.remoteTimeoutSeconds ?? parsed.timeoutSeconds ?? 300,
     autoApprove: parsed.autoApprove ?? [],
     autoDeny: parsed.autoDeny ?? [],
   };

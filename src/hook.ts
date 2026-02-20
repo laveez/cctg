@@ -1,4 +1,4 @@
-import { loadConfig, isActive } from "./config.js";
+import { loadConfig, getMode } from "./config.js";
 import {
   sendPermissionRequest,
   pollForDecision,
@@ -21,7 +21,7 @@ async function main() {
   const payload = parseHookStdin(input);
 
   // 1. Toggle check — if cctg is off, pass through (normal CLI prompts)
-  if (!isActive()) {
+  if (getMode() === "off") {
     process.stdout.write(PASS_THROUGH);
     return;
   }
