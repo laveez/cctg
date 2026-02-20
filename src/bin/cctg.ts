@@ -72,19 +72,49 @@ async function init() {
     hooks.PreToolUse = preToolUse;
     settings.hooks = hooks;
     writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2) + "\n");
-    console.log(`\u2705 Hook registered in ${SETTINGS_PATH}`);
+    console.log(`\u2705 PreToolUse hook registered in ${SETTINGS_PATH}`);
   } else {
-    console.log(`\u2139\ufe0f Hook already registered in ${SETTINGS_PATH}`);
+    console.log(`\u2139\ufe0f PreToolUse hook already registered in ${SETTINGS_PATH}`);
+  }
+
+  // Register Stop hook
+  const stopHookPath = join(__dirname, "..", "stop-hook.js");
+  const stopHookEntry = {
+    hooks: [
+      {
+        type: "command" as const,
+        command: `node ${stopHookPath}`,
+        timeout: Math.max(timeoutSeconds + 30, 600),
+      },
+    ],
+  };
+
+  const stopHooks = (hooks.Stop ?? []) as unknown[];
+  const stopAlreadyInstalled = stopHooks.some((h) =>
+    JSON.stringify(h).includes("cctg")
+  );
+
+  if (!stopAlreadyInstalled) {
+    stopHooks.push(stopHookEntry);
+    hooks.Stop = stopHooks;
+    settings.hooks = hooks;
+    writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2) + "\n");
+    console.log(`\u2705 Stop hook registered in ${SETTINGS_PATH}`);
   }
 
   console.log(
-    "\n\ud83c\udf89 Setup complete! Claude Code will now send permission requests to Telegram.\n"
+    "\n\ud83c\udf89 Setup complete! Claude Code will now route through Telegram.\n"
   );
 }
 
 function on() {
-  writeFileSync(ACTIVE_PATH, String(Date.now()));
-  console.log("\u2705 cctg enabled — tool calls will be sent to Telegram");
+  writeFileSync(ACTIVE_PATH, "on");
+  console.log("\u2705 cctg ON — full remote control (tools + stop + questions via Telegram)");
+}
+
+function toolsOnly() {
+  writeFileSync(ACTIVE_PATH, "tools-only");
+  console.log("\u2705 cctg TOOLS-ONLY — tool approvals via Telegram, input at terminal");
 }
 
 function off() {
@@ -97,8 +127,16 @@ function off() {
 }
 
 function status() {
-  const active = existsSync(ACTIVE_PATH);
-  console.log(`cctg is ${active ? "ON (Telegram approval)" : "OFF (CLI prompts)"}`);
+  let mode = "OFF";
+  try {
+    const content = readFileSync(ACTIVE_PATH, "utf-8").trim();
+    if (content === "on") mode = "ON (full remote)";
+    else if (content === "tools-only") mode = "TOOLS-ONLY (tool approvals)";
+    else mode = "ON (full remote)"; // Legacy timestamp
+  } catch {
+    mode = "OFF (CLI prompts)";
+  }
+  console.log(`cctg: ${mode}`);
 }
 
 const command = process.argv[2];
@@ -113,6 +151,9 @@ switch (command) {
   case "on":
     on();
     break;
+  case "tools-only":
+    toolsOnly();
+    break;
   case "off":
     off();
     break;
@@ -122,8 +163,9 @@ switch (command) {
   default:
     console.log("Usage: cctg <command>\n");
     console.log("Commands:");
-    console.log("  init    \u2014 Set up Telegram bot and register Claude Code hook");
-    console.log("  on      \u2014 Enable Telegram approval (going AFK)");
-    console.log("  off     \u2014 Disable Telegram approval (back at keyboard)");
-    console.log("  status  \u2014 Show current mode");
+    console.log("  init        \u2014 Set up Telegram bot and register hooks");
+    console.log("  on          \u2014 Full remote control (going AFK)");
+    console.log("  tools-only  \u2014 Tool approvals only (at keyboard)");
+    console.log("  off         \u2014 Disable all Telegram control");
+    console.log("  status      \u2014 Show current mode");
 }
