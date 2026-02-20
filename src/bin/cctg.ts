@@ -40,9 +40,12 @@ async function init() {
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + "\n");
   console.log(`\n\u2705 Config written to ${CONFIG_PATH}`);
 
-  // Determine hook command path
+  // Determine hook command path (use $HOME for cross-machine portability)
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  const hookPath = join(__dirname, "..", "hook.js");
+  const homeDir = homedir();
+  const toPortable = (abs: string) =>
+    abs.startsWith(homeDir) ? `$HOME${abs.slice(homeDir.length)}` : abs;
+  const hookPath = toPortable(join(__dirname, "..", "hook.js"));
 
   // Register hook in settings.json
   let settings: Record<string, unknown> = {};
@@ -78,7 +81,7 @@ async function init() {
   }
 
   // Register Stop hook
-  const stopHookPath = join(__dirname, "..", "stop-hook.js");
+  const stopHookPath = toPortable(join(__dirname, "..", "stop-hook.js"));
   const stopHookEntry = {
     hooks: [
       {

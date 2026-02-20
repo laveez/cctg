@@ -46,6 +46,13 @@ sequenceDiagram
     H-->>C: block + reason: "Now write tests"
 ```
 
+### Contents
+
+- [Features](#features) · [Demo](#demo) · [Quick Start](#quick-start) · [Usage](#usage)
+- [How It Works](#how-it-works) · [Configuration](#configuration) · [Security](#security) · [Troubleshooting](#troubleshooting)
+
+---
+
 ## Features
 
 - **Three modes** — `cctg on` (full remote), `cctg tools-only` (approvals only), `cctg off`
@@ -56,6 +63,8 @@ sequenceDiagram
 - **Anti-replay** — each request has a unique ID; stale button presses are ignored
 - **Zero dependencies** — pure Node.js, no external packages
 - **No daemon** — each hook invocation is a fresh process; no background services
+
+---
 
 ## Demo
 
@@ -95,10 +104,14 @@ Reply to continue · /done to stop
 
 Reply with your next instruction, or `/done` to let Claude stop.
 
+---
+
 ## Prerequisites
 
 - **Node.js 18+** (Claude Code already requires this)
 - **Telegram account** with a bot (free, takes 2 minutes)
+
+---
 
 ## Quick Start
 
@@ -134,6 +147,8 @@ cctg init
 
 Enter your bot token and chat ID. The wizard writes `~/.cctg.json` and registers the hook in `~/.claude/settings.json`.
 
+---
+
 ## Usage
 
 ### Modes
@@ -163,9 +178,11 @@ cctg reads your `~/.claude/settings.json` permission rules. Tools already in you
 
 This means you won't get spammed with messages for every `Read`, `Glob`, or `git status` call.
 
+---
+
 ## How it works
 
-cctg registers two [Claude Code hooks](https://docs.claude.com/en/docs/claude-code/hooks):
+cctg registers two [Claude Code hooks](https://code.claude.com/docs/en/hooks):
 
 - **PreToolUse** — intercepts tool calls and AskUserQuestion prompts
 - **Stop** — intercepts when Claude finishes, enabling remote continuation
@@ -204,6 +221,8 @@ flowchart TD
 
 No daemon. No background process. Each hook invocation is a fresh Node.js process that exits after the decision.
 
+---
+
 ## Configuration
 
 Config lives at `~/.cctg.json` (created by `cctg init`):
@@ -230,6 +249,8 @@ Config lives at `~/.cctg.json` (created by `cctg init`):
 
 > **Note:** `autoApprove` / `autoDeny` in `~/.cctg.json` are for tools you want cctg to handle directly — separate from the `permissions.allow` list in `~/.claude/settings.json`, which cctg respects automatically.
 
+---
+
 ## Security
 
 - **Fail-closed** — if anything goes wrong (timeout, network error, crash), the tool call is denied
@@ -237,6 +258,8 @@ Config lives at `~/.cctg.json` (created by `cctg init`):
 - **Request ID matching** — each permission request has a unique ID, preventing stale button presses from being accepted
 - **No secrets in code** — bot token and chat ID live in `~/.cctg.json`, gitignored
 - **Polling mode** — no webhook server, no public URL, no inbound connections
+
+---
 
 ## Troubleshooting
 
@@ -263,9 +286,13 @@ Config lives at `~/.cctg.json` (created by `cctg init`):
 - To take back control: open another terminal and run `cctg tools-only` or `cctg off`
 - The Stop hook detects the mode change and releases the terminal
 
+---
+
 ## See Also
 
 - **[ccsl](https://github.com/laveez/ccsl)** — Claude Code Statusline. A rich, information-dense statusline for Claude Code. When cctg is installed, ccsl shows the current cctg mode (`📱 ON` / `📱 off`) as a badge in your statusline.
+
+---
 
 ## Contributing
 

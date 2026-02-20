@@ -1,7 +1,7 @@
 {
   "name": "cctg",
   "version": "0.1.1",
-  "description": "Claude Code Telegram Gate — approve tool calls from your phone",
+  "description": "Claude Code Telegram Gate — approve tools, answer questions, and continue sessions from your phone",
   "type": "module",
   "exports": {
     "./hook": "./dist/hook.js",
@@ -24,7 +24,11 @@
     "claude-code",
     "telegram",
     "hooks",
-    "permissions"
+    "permissions",
+    "remote",
+    "mobile",
+    "approval",
+    "bot"
   ],
   "license": "MIT",
   "repository": {
