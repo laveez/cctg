@@ -262,6 +262,10 @@ Config lives at `~/.cctg.json` (created by `cctg init`):
 - To take back control: open another terminal and run `cctg tools-only` or `cctg off`
 - The Stop hook detects the mode change and releases the terminal
 
+## See Also
+
+- **[ccsl](https://github.com/laveez/ccsl)** — Claude Code Statusline. A rich, information-dense statusline for Claude Code. When cctg is installed, ccsl shows the current cctg mode (`📱 ON` / `📱 off`) as a badge in your statusline.
+
 ## Contributing
 
 Contributions are welcome! This is a small project — open an issue or submit a PR.
