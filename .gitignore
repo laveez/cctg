@@ -2,3 +2,4 @@ node_modules/
 dist/
 .cctg.json
 .cctg-active
+docs/plans/
