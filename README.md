@@ -6,6 +6,7 @@
 
 Control Claude Code from your phone via Telegram — approve tool calls, answer questions, and send follow-up instructions.
 
+[![npm](https://img.shields.io/npm/v/cctg?style=flat-square)](https://www.npmjs.com/package/cctg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Node.js 18+](https://img.shields.io/badge/Node.js-18%2B-brightgreen?style=flat-square)](https://nodejs.org)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square)](#)

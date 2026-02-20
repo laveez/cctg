@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "description": "Claude Code Telegram Gate — approve tool calls from your phone",
   "type": "module",
-  "main": "dist/hook.js",
+  "exports": {
+    "./hook": "./dist/hook.js",
+    "./stop-hook": "./dist/stop-hook.js"
+  },
+  "author": "laveez",
   "bin": {
     "cctg": "dist/bin/cctg.js"
   },
@@ -23,6 +27,10 @@
     "url": "https://github.com/laveez/cctg/issues"
   },
   "homepage": "https://github.com/laveez/cctg#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=18.0.0"
   },

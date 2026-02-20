@@ -3,3 +3,7 @@ dist/
 .cctg.json
 .cctg-active
 docs/plans/
+.DS_Store
+*.tgz
+*.log
+*.tsbuildinfo
