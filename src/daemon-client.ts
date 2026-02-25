@@ -1,5 +1,4 @@
 import net from "node:net";
-import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,8 +47,8 @@ export function connectToDaemon(maxRetries = DEFAULT_MAX_RETRIES): Promise<net.S
           return;
         }
 
-        // Auto-start daemon on first failure if socket file doesn't exist
-        if (!daemonSpawned && !existsSync(SOCKET_PATH)) {
+        // Auto-start daemon on first failure (daemon cleans up stale socket on start)
+        if (!daemonSpawned) {
           const daemonPath = join(
             dirname(fileURLToPath(import.meta.url)),
             "daemon.js"

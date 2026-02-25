@@ -141,12 +141,17 @@ function cleanupSocketRequests(socket: net.Socket): void {
 // Message handlers
 // ---------------------------------------------------------------------------
 
+function labelMessage(sessionLabel: string, message: string): string {
+  return `\ud83d\udcc2 _${sessionLabel}_\n\n${message}`;
+}
+
 async function handlePermission(msg: IncomingPermission, socket: net.Socket): Promise<void> {
   try {
+    const labeled = labelMessage(msg.sessionLabel, msg.message);
     const messageId = await sendPermissionRequest(
       config.botToken,
       config.chatId,
-      msg.message,
+      labeled,
       msg.requestId
     );
 
@@ -156,7 +161,7 @@ async function handlePermission(msg: IncomingPermission, socket: net.Socket): Pr
       socket,
       sessionLabel: msg.sessionLabel,
       telegramMessageId: messageId,
-      originalMessage: msg.message,
+      originalMessage: labeled,
     });
   } catch (err) {
     log(`Failed to send permission request ${msg.requestId}: ${err}`);
@@ -166,10 +171,11 @@ async function handlePermission(msg: IncomingPermission, socket: net.Socket): Pr
 
 async function handleQuestion(msg: IncomingQuestion, socket: net.Socket): Promise<void> {
   try {
+    const labeled = labelMessage(msg.sessionLabel, msg.message);
     const messageId = await sendQuestionWithOptions(
       config.botToken,
       config.chatId,
-      msg.message,
+      labeled,
       msg.options,
       msg.requestId
     );
@@ -180,7 +186,7 @@ async function handleQuestion(msg: IncomingQuestion, socket: net.Socket): Promis
       socket,
       sessionLabel: msg.sessionLabel,
       telegramMessageId: messageId,
-      originalMessage: msg.message,
+      originalMessage: labeled,
     });
   } catch (err) {
     log(`Failed to send question ${msg.requestId}: ${err}`);
@@ -191,10 +197,11 @@ async function handleQuestion(msg: IncomingQuestion, socket: net.Socket): Promis
 
 async function handleStop(msg: IncomingStop, socket: net.Socket): Promise<void> {
   try {
+    const labeled = labelMessage(msg.sessionLabel, msg.message);
     const messageId = await sendMessage(
       config.botToken,
       config.chatId,
-      msg.message
+      labeled
     );
 
     const timeoutTimer = setTimeout(() => {
@@ -207,7 +214,7 @@ async function handleStop(msg: IncomingStop, socket: net.Socket): Promise<void> 
         config.botToken,
         config.chatId,
         messageId,
-        `${msg.message}\n\n\u23f1\ufe0f _Timed out_`
+        `${labeled}\n\n\u23f1\ufe0f _Timed out_`
       ).catch(() => {});
     }, msg.timeoutSeconds * 1000);
 
@@ -218,7 +225,7 @@ async function handleStop(msg: IncomingStop, socket: net.Socket): Promise<void> 
       sessionLabel: msg.sessionLabel,
       timeoutTimer,
       telegramMessageId: messageId,
-      originalMessage: msg.message,
+      originalMessage: labeled,
     });
   } catch (err) {
     log(`Failed to send stop message ${msg.requestId}: ${err}`);
