@@ -1,11 +1,6 @@
 import { loadConfig, getMode } from "./config.js";
-import {
-  sendPermissionRequest,
-  sendQuestionWithOptions,
-  pollForDecision,
-  editMessage,
-  flushStaleUpdates,
-} from "./telegram.js";
+import { connectToDaemon, sendRequest, waitForResponse } from "./daemon-client.js";
+import { getSessionLabel } from "./session.js";
 import { formatToolCall, formatQuestion, parseHookStdin, type Question } from "./format.js";
 import { isToolAllowed } from "./permissions.js";
 import { randomBytes } from "node:crypto";
@@ -40,45 +35,32 @@ async function main() {
   if (mode === "on" && payload.tool_name === "AskUserQuestion") {
     const questions = (payload.tool_input.questions ?? []) as Question[];
     if (questions.length > 0) {
-      await flushStaleUpdates(config.botToken);
-
+      const socket = await connectToDaemon();
+      const sessionLabel = getSessionLabel();
       const requestId = randomBytes(8).toString("hex");
       const message = formatQuestion(questions);
 
-      // Build option buttons from first question's options
       const q = questions[0];
       const options = q.options.map((o, i) => ({
         label: o.label,
         callbackData: `opt${i}`,
       }));
 
-      const messageId = await sendQuestionWithOptions(
-        config.botToken,
-        config.chatId,
+      sendRequest(socket, {
+        type: "question",
+        requestId,
         message,
         options,
-        requestId
-      );
+        sessionLabel,
+      });
 
-      // Poll for selection (reuses pollForDecision which now returns any string)
-      const decision = await pollForDecision(
-        config.botToken,
-        config.chatId,
-        requestId,
-        config.timeoutSeconds
-      );
+      const response = await waitForResponse(socket, (config.timeoutSeconds + 30) * 1000);
+      socket.destroy();
 
+      const decision = (response.decision as string) ?? "opt0";
       const optIndex = parseInt(decision.replace("opt", ""), 10);
       const selectedOption = q.options[optIndex] ?? q.options[0];
 
-      await editMessage(
-        config.botToken,
-        config.chatId,
-        messageId,
-        `${message}\n\n\u2705 Selected: *${selectedOption.label}*`
-      ).catch(() => {});
-
-      // Deny the tool call but inject the answer as context
       process.stdout.write(
         JSON.stringify({
           hookSpecificOutput: {
@@ -119,40 +101,24 @@ async function main() {
     return;
   }
 
-  // 5. Flush stale updates before sending new request
-  await flushStaleUpdates(config.botToken);
-
-  // Generate unique request ID
+  // 5. Send permission request to daemon
+  const socket = await connectToDaemon();
+  const sessionLabel = getSessionLabel();
   const requestId = randomBytes(8).toString("hex");
-
-  // Send permission request to Telegram
   const message = formatToolCall(payload);
-  const messageId = await sendPermissionRequest(
-    config.botToken,
-    config.chatId,
-    message,
-    requestId
-  );
 
-  // Wait for response
-  const decision = await pollForDecision(
-    config.botToken,
-    config.chatId,
+  sendRequest(socket, {
+    type: "permission",
     requestId,
-    config.timeoutSeconds
-  );
+    message,
+    sessionLabel,
+  });
 
-  // Update the Telegram message to show the decision
-  const statusIcon = decision === "allow" ? "\u2705" : "\u274c";
-  const statusText = decision === "allow" ? "Allowed" : "Denied";
-  await editMessage(
-    config.botToken,
-    config.chatId,
-    messageId,
-    `${message}\n\n${statusIcon} ${statusText}`
-  ).catch(() => {}); // Non-critical
+  const response = await waitForResponse(socket, (config.timeoutSeconds + 30) * 1000);
+  socket.destroy();
 
-  // Output decision to Claude Code
+  const decision = (response.decision as string) ?? "deny";
+
   const result = {
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
