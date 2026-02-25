@@ -9,14 +9,14 @@ interface TelegramResponse<T> {
   description?: string;
 }
 
-interface CallbackQuery {
+export interface CallbackQuery {
   id: string;
   from: { id: number };
   data?: string;
   message?: { message_id: number; chat: { id: number } };
 }
 
-interface TelegramMessage {
+export interface TelegramMessage {
   message_id: number;
   from?: { id: number };
   chat: { id: number };
@@ -24,13 +24,13 @@ interface TelegramMessage {
   text?: string;
 }
 
-interface Update {
+export interface Update {
   update_id: number;
   callback_query?: CallbackQuery;
   message?: TelegramMessage;
 }
 
-function telegramApi<T>(
+export function telegramApi<T>(
   botToken: string,
   method: string,
   body: Record<string, unknown>
@@ -118,7 +118,7 @@ export async function sendMessage(
   return res.result.message_id;
 }
 
-function loadOffset(): number {
+export function loadOffset(): number {
   try {
     return parseInt(readFileSync(OFFSET_PATH, "utf-8").trim(), 10) || 0;
   } catch {
@@ -126,7 +126,7 @@ function loadOffset(): number {
   }
 }
 
-function saveOffset(offset: number): void {
+export function saveOffset(offset: number): void {
   try {
     writeFileSync(OFFSET_PATH, String(offset));
   } catch {
