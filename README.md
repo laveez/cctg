@@ -1,3 +1,7 @@
+> **Deprecated:** Claude now has an official [Remote Control](https://code.claude.com/docs/en/remote-control) feature that provides the same core functionality — remote tool approvals, continuation, and question answering — natively. This repo is archived and no longer maintained.
+
+---
+
 <div align="center">
 
 # cctg
