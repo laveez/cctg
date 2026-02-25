@@ -5,7 +5,9 @@ import { writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { CONFIG_PATH, ACTIVE_PATH } from "../config.js";
+import net from "node:net";
+import { spawn } from "node:child_process";
+import { CONFIG_PATH, ACTIVE_PATH, SOCKET_PATH } from "../config.js";
 
 const SETTINGS_PATH = join(homedir(), ".claude", "settings.json");
 
@@ -110,17 +112,74 @@ async function init() {
   );
 }
 
+function startDaemon(): void {
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const daemonPath = join(__dirname, "..", "daemon.js");
+  const child = spawn("node", [daemonPath], {
+    detached: true,
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  child.unref();
+}
+
+function stopDaemon(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!existsSync(SOCKET_PATH)) {
+      resolve();
+      return;
+    }
+    const socket = net.createConnection(SOCKET_PATH);
+    socket.once("connect", () => {
+      socket.write(JSON.stringify({ type: "shutdown" }) + "\n");
+      setTimeout(() => {
+        socket.destroy();
+        try { unlinkSync(SOCKET_PATH); } catch {}
+        resolve();
+      }, 500);
+    });
+    socket.once("error", () => {
+      try { unlinkSync(SOCKET_PATH); } catch {}
+      resolve();
+    });
+  });
+}
+
+function isDaemonAlive(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!existsSync(SOCKET_PATH)) {
+      resolve(false);
+      return;
+    }
+    const socket = net.createConnection(SOCKET_PATH);
+    socket.once("connect", () => {
+      socket.write(JSON.stringify({ type: "ping" }) + "\n");
+      socket.once("data", () => {
+        socket.destroy();
+        resolve(true);
+      });
+    });
+    socket.once("error", () => resolve(false));
+    setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, 2000);
+  });
+}
+
 function on() {
   writeFileSync(ACTIVE_PATH, "on");
+  startDaemon();
   console.log("\u2705 cctg ON — full remote control (tools + stop + questions via Telegram)");
 }
 
 function toolsOnly() {
   writeFileSync(ACTIVE_PATH, "tools-only");
+  startDaemon();
   console.log("\u2705 cctg TOOLS-ONLY — tool approvals via Telegram, input at terminal");
 }
 
-function off() {
+async function off() {
+  await stopDaemon();
   try {
     unlinkSync(ACTIVE_PATH);
   } catch {
@@ -129,17 +188,22 @@ function off() {
   console.log("\u274c cctg disabled — tool calls use normal CLI prompts");
 }
 
-function status() {
+async function status() {
   let mode = "OFF";
   try {
     const content = readFileSync(ACTIVE_PATH, "utf-8").trim();
     if (content === "on") mode = "ON (full remote)";
     else if (content === "tools-only") mode = "TOOLS-ONLY (tool approvals)";
-    else mode = "ON (full remote)"; // Legacy timestamp
+    else mode = "ON (full remote)";
   } catch {
     mode = "OFF (CLI prompts)";
   }
+
+  const daemonAlive = await isDaemonAlive();
+  const daemonStatus = daemonAlive ? "running" : "not running";
+
   console.log(`cctg: ${mode}`);
+  console.log(`Daemon: ${daemonStatus}`);
 }
 
 const command = process.argv[2];
@@ -158,10 +222,10 @@ switch (command) {
     toolsOnly();
     break;
   case "off":
-    off();
+    off().catch((err) => { console.error(`Error: ${err.message}`); process.exit(1); });
     break;
   case "status":
-    status();
+    status().catch((err) => { console.error(`Error: ${err.message}`); process.exit(1); });
     break;
   default:
     console.log("Usage: cctg <command>\n");
