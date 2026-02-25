@@ -1,26 +1,14 @@
-import { loadConfig, getMode, ACTIVE_PATH } from "./config.js";
-import {
-  sendMessage,
-  pollForTextMessage,
-  editMessage,
-  flushStaleUpdates,
-} from "./telegram.js";
+import { loadConfig, getMode } from "./config.js";
 import {
   formatStopMessage,
   extractLastAssistantMessage,
   type StopHookPayload,
 } from "./format.js";
-import { readFileSync } from "node:fs";
+import { connectToDaemon, sendRequest, waitForResponse } from "./daemon-client.js";
+import { getSessionLabel } from "./session.js";
+import { randomBytes } from "node:crypto";
 
 const PASS_THROUGH = JSON.stringify({});
-
-function readMode(): string {
-  try {
-    return readFileSync(ACTIVE_PATH, "utf-8").trim();
-  } catch {
-    return "off";
-  }
-}
 
 async function main() {
   let input = "";
@@ -41,80 +29,41 @@ async function main() {
   // Extract last assistant message from transcript
   const lastMessage = extractLastAssistantMessage(payload.transcript_path);
 
-  // Flush stale updates
-  await flushStaleUpdates(config.botToken);
-
-  // Capture timestamp before sending — only accept messages after this point
-  const hookStartTime = Math.floor(Date.now() / 1000);
-
-  // Send stop notification to Telegram
+  // Connect to daemon and send stop request
+  const socket = await connectToDaemon();
+  const sessionLabel = getSessionLabel();
+  const requestId = randomBytes(8).toString("hex");
   const message = formatStopMessage(lastMessage);
-  const messageId = await sendMessage(
-    config.botToken,
-    config.chatId,
-    message
-  );
 
-  // Capture initial mode to detect changes
-  const initialMode = readMode();
+  sendRequest(socket, {
+    type: "stop",
+    requestId,
+    message,
+    sessionLabel,
+    timeoutSeconds: config.remoteTimeoutSeconds,
+  });
 
-  // Poll for user response
-  const result = await pollForTextMessage(
-    config.botToken,
-    config.chatId,
-    config.remoteTimeoutSeconds,
-    () => readMode() !== initialMode,
-    hookStartTime
-  );
+  const response = await waitForResponse(socket, (config.remoteTimeoutSeconds + 60) * 1000);
+  socket.destroy();
 
-  switch (result.type) {
-    case "message": {
-      // User sent continuation instruction
-      await editMessage(
-        config.botToken,
-        config.chatId,
-        messageId,
-        `${message}\n\n\u25b6\ufe0f _Continuing..._`
-      ).catch(() => {});
+  const resultType = (response.result as string) ?? "timeout";
 
+  switch (resultType) {
+    case "message":
       process.stdout.write(
         JSON.stringify({
           decision: "block",
-          reason: result.text,
+          reason: response.text as string,
         })
       );
       return;
-    }
 
     case "done":
-      await editMessage(
-        config.botToken,
-        config.chatId,
-        messageId,
-        `${message}\n\n\u23f9\ufe0f _Stopped_`
-      ).catch(() => {});
-      break;
-
     case "timeout":
-      await editMessage(
-        config.botToken,
-        config.chatId,
-        messageId,
-        `${message}\n\n\u23f1\ufe0f _Timed out_`
-      ).catch(() => {});
-      break;
-
     case "abort":
-      await editMessage(
-        config.botToken,
-        config.chatId,
-        messageId,
-        `${message}\n\n\ud83d\udda5\ufe0f _Switched to terminal_`
-      ).catch(() => {});
-      break;
+    default:
+      process.stdout.write(PASS_THROUGH);
   }
-
-  process.stdout.write(PASS_THROUGH);
 }
 
 main().catch((err) => {
