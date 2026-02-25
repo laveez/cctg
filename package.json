@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./hook": "./dist/hook.js",
-    "./stop-hook": "./dist/stop-hook.js"
+    "./stop-hook": "./dist/stop-hook.js",
+    "./daemon": "./dist/daemon.js"
   },
   "author": "laveez",
   "bin": {
