@@ -15,6 +15,8 @@ export interface CctgConfig {
 
 export const CONFIG_PATH = join(homedir(), ".cctg.json");
 export const ACTIVE_PATH = join(homedir(), ".cctg-active");
+export const SOCKET_PATH = "/tmp/cctg.sock";
+export const DAEMON_LOG_PATH = "/tmp/cctg-daemon.log";
 
 export function getMode(): CctgMode {
   try {
